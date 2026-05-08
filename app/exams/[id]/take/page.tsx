@@ -7,7 +7,7 @@ import { Exam, Answer } from '@/lib/types';
 import { getExam, lockExam } from '@/lib/storage/examStorage';
 import { createSubmission, saveSubmission, getLatestSubmission } from '@/lib/storage/submissionStorage';
 import ExamTaker from '@/components/exam/ExamTaker';
-import ExamTimer from '@/components/shared/ExamTimer';
+
 
 interface PageParams {
   params: Promise<{ id: string }>;
@@ -145,10 +145,19 @@ export default function TakeExamPage({ params }: PageParams) {
     }
   }, [exam, startTime, isSubmitted, answers, examId, router]);
 
-  const handleTimeUp = useCallback(() => {
-    console.log('Time is up - auto-submitting');
+  const handleExamComplete = useCallback(() => {
+    console.log('All sections completed - submitting');
     handleSubmit();
   }, [handleSubmit]);
+
+  const handleCancel = useCallback(() => {
+    if (confirm('Bạn có chắc muốn hủy bài thi? Toàn bộ quá trình làm bài sẽ bị xóa.')) {
+      if (examId) {
+        localStorage.removeItem(`exam-answers:${examId}`);
+      }
+      router.push('/');
+    }
+  }, [examId, router]);
 
   if (isLoading) {
     return <div className="w-full px-4 py-8 sm:px-6 lg:px-8">Loading exam...</div>;
@@ -169,18 +178,9 @@ export default function TakeExamPage({ params }: PageParams) {
 
   return (
     <main className="w-full px-4 py-8 sm:px-6 lg:px-8">
-      {/* Header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900 mb-2">{exam.title}</h1>
-        {exam.description && <p className="text-gray-600">{exam.description}</p>}
-      </div>
 
-      {/* Timer */}
-      {!isSubmitted && startTime && (
-        <div className="mb-8">
-          <ExamTimer durationMinutes={exam.durationMinutes} onTimeUp={handleTimeUp} isSubmitted={isSubmitted} />
-        </div>
-      )}
+
+
 
       {/* Submission Status */}
       {isSubmitted && (
@@ -194,24 +194,31 @@ export default function TakeExamPage({ params }: PageParams) {
       {error && <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-700">{error}</div>}
 
       {/* Exam Questions */}
-      <ExamTaker exam={exam} answers={answers} isLocked={isSubmitted} onAnswerChange={handleAnswerChange} />
-
-      {/* Submit Button */}
-      {!isSubmitted && (
-        <div className="mt-8 flex gap-4 justify-end sticky bottom-4">
-          <Link href="/">
-            <button className="px-6 py-3 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50">
-              Cancel
-            </button>
-          </Link>
-          <button
-            onClick={handleSubmit}
-            className="px-6 py-3 bg-blue-600 text-white rounded-lg hover:bg-blue-700 font-medium"
-          >
-            Submit Exam
-          </button>
-        </div>
-      )}
+      <ExamTaker
+        exam={exam}
+        answers={answers}
+        isLocked={isSubmitted}
+        onAnswerChange={handleAnswerChange}
+        onExamComplete={handleExamComplete}
+        actionButtons={
+          !isSubmitted && (
+            <>
+              <button
+                onClick={handleCancel}
+                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-lg hover:bg-gray-50 text-sm font-medium transition-colors"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={handleSubmit}
+                className="px-4 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-medium transition-colors"
+              >
+                Submit Exam
+              </button>
+            </>
+          )
+        }
+      />
     </main>
   );
 }

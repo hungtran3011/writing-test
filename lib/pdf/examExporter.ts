@@ -78,32 +78,58 @@ export async function exportExamToPDF(exam: Exam, submission: Submission, filena
       yPosition += 5;
     });
 
-    // Image if present
+    // Handle images and required words
+    const imagesToRender: { src: string; requiredWords: string[] | null }[] = [];
     if (question.image) {
-      yPosition += 3;
+      imagesToRender.push({ src: question.image, requiredWords: null });
+    } else if (question.images && question.images.length > 0) {
+      question.images.forEach((img, i) => {
+        imagesToRender.push({
+          src: img,
+          requiredWords: question.requiredWords && question.requiredWords[i] ? question.requiredWords[i].filter(Boolean) : null
+        });
+      });
+    }
+
+    imagesToRender.forEach((imgData, i) => {
+      // Check page break for image
+      if (yPosition + 60 > pageHeight - margin) {
+        doc.addPage();
+        yPosition = margin;
+      }
+
       try {
-        const img = new Image();
-        img.onload = () => {
-          // Images will be added in a second pass - for now just mark space
-        };
-        img.src = question.image;
-
-        if (yPosition + 50 > pageHeight - margin) {
-          doc.addPage();
-          yPosition = margin;
+        let format = 'JPEG';
+        if (imgData.src.startsWith('data:image/')) {
+          const match = imgData.src.match(/data:image\/([a-zA-Z]+);base64/);
+          if (match) {
+            format = match[1].toUpperCase();
+            if (format === 'SVG+XML') format = 'SVG';
+          }
         }
-
-        // For now, add a placeholder for images
-        // Full image support requires async handling
+        
+        // Render image (width 80, height 50)
+        doc.addImage(imgData.src, format, margin + 5, yPosition, 80, 50);
+        yPosition += 55;
+      } catch (err) {
+        console.error('Error rendering image to PDF:', err);
         doc.setFontSize(9);
         doc.setTextColor(150);
-        doc.text('[Image embedded]', margin + 5, yPosition);
+        doc.text(`[Image ${i + 1} embedded]`, margin + 5, yPosition);
         doc.setTextColor(0);
         yPosition += 10;
-      } catch (error) {
-        console.error('Error processing image:', error);
       }
-    }
+
+      // Required words
+      if (imgData.requiredWords && imgData.requiredWords.length > 0) {
+        doc.setFontSize(10);
+        doc.setFont('Arial', 'bold');
+        doc.text(`Required words:`, margin + 5, yPosition);
+        doc.setFont('Arial', 'normal');
+        doc.text(imgData.requiredWords.join(', '), margin + 35, yPosition);
+        yPosition += 8;
+      }
+    });
 
     // Answer
     yPosition += 3;
