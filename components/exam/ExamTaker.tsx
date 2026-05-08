@@ -242,7 +242,9 @@ function SectionTimer({
 }) {
   const [remaining, setRemaining] = useState(timeLimitSeconds);
   const onTimeUpRef = useRef(onTimeUp);
-  onTimeUpRef.current = onTimeUp;
+  useEffect(() => {
+    onTimeUpRef.current = onTimeUp;
+  }, [onTimeUp]);
   const firedRef = useRef(false);
 
   useEffect(() => {
