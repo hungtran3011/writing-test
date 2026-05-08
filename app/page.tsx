@@ -1,65 +1,125 @@
-import Image from "next/image";
+'use client';
+
+import { useState, useEffect } from 'react';
+import { Collection } from '@/lib/types';
+import { getAllCollections, createCollection, saveCollection, deleteCollection } from '@/lib/storage/collectionStorage';
+import CollectionList from '@/components/collection/CollectionList';
 
 export default function Home() {
+  const [collections, setCollections] = useState<Collection[]>([]);
+  const [showNewCollectionForm, setShowNewCollectionForm] = useState(false);
+  const [newCollectionName, setNewCollectionName] = useState('');
+  const [newCollectionDesc, setNewCollectionDesc] = useState('');
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    const loadCollections = () => {
+      const data = getAllCollections();
+      setCollections(data);
+    };
+    loadCollections();
+  }, []);
+
+  const handleCreateCollection = () => {
+    setError(null);
+
+    if (!newCollectionName.trim()) {
+      setError('Collection name is required');
+      return;
+    }
+
+    try {
+      const newCollection = createCollection(newCollectionName, newCollectionDesc);
+      saveCollection(newCollection);
+      setCollections([...collections, newCollection]);
+      setNewCollectionName('');
+      setNewCollectionDesc('');
+      setShowNewCollectionForm(false);
+    } catch (err) {
+      setError(`Failed to create collection: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
+  const handleDeleteCollection = (id: string) => {
+    try {
+      deleteCollection(id);
+      setCollections(collections.filter((c) => c.id !== id));
+    } catch (err) {
+      setError(`Failed to delete collection: ${err instanceof Error ? err.message : 'Unknown error'}`);
+    }
+  };
+
   return (
-    <div className="flex flex-col flex-1 items-center justify-center bg-zinc-50 font-sans dark:bg-black">
-      <main className="flex flex-1 w-full max-w-3xl flex-col items-center justify-between py-32 px-16 bg-white dark:bg-black sm:items-start">
-        <Image
-          className="dark:invert"
-          src="/next.svg"
-          alt="Next.js logo"
-          width={100}
-          height={20}
-          priority
-        />
-        <div className="flex flex-col items-center gap-6 text-center sm:items-start sm:text-left">
-          <h1 className="max-w-xs text-3xl font-semibold leading-10 tracking-tight text-black dark:text-zinc-50">
-            To get started, edit the page.tsx file.
-          </h1>
-          <p className="max-w-md text-lg leading-8 text-zinc-600 dark:text-zinc-400">
-            Looking for a starting point or more instructions? Head over to{" "}
-            <a
-              href="https://vercel.com/templates?framework=next.js&utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Templates
-            </a>{" "}
-            or the{" "}
-            <a
-              href="https://nextjs.org/learn?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-              className="font-medium text-zinc-950 dark:text-zinc-50"
-            >
-              Learning
-            </a>{" "}
-            center.
-          </p>
-        </div>
-        <div className="flex flex-col gap-4 text-base font-medium sm:flex-row">
-          <a
-            className="flex h-12 w-full items-center justify-center gap-2 rounded-full bg-foreground px-5 text-background transition-colors hover:bg-[#383838] dark:hover:bg-[#ccc] md:w-[158px]"
-            href="https://vercel.com/new?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            <Image
-              className="dark:invert"
-              src="/vercel.svg"
-              alt="Vercel logomark"
-              width={16}
-              height={16}
+    <main className="w-full px-4 py-8 sm:px-6 lg:px-8">
+      {/* Header */}
+      <div className="mb-8">
+        <h1 className="text-3xl font-bold text-gray-900 mb-2">Exam Collections</h1>
+        <p className="text-gray-600">Create and manage your exam collections</p>
+      </div>
+
+      {/* Error Message */}
+      {error && (
+        <div className="mb-4 p-4 bg-red-50 border border-red-200 rounded text-red-700">{error}</div>
+      )}
+
+      {/* New Collection Form */}
+      {showNewCollectionForm ? (
+        <div className="mb-8 bg-white p-6 rounded-lg border border-gray-200 space-y-4">
+          <h2 className="text-lg font-bold text-gray-900">Create New Collection</h2>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Collection Name *</label>
+            <input
+              type="text"
+              value={newCollectionName}
+              onChange={(e) => setNewCollectionName(e.target.value)}
+              placeholder="e.g., English Class - Spring 2024"
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
             />
-            Deploy Now
-          </a>
-          <a
-            className="flex h-12 w-full items-center justify-center rounded-full border border-solid border-black/[.08] px-5 transition-colors hover:border-transparent hover:bg-black/[.04] dark:border-white/[.145] dark:hover:bg-[#1a1a1a] md:w-[158px]"
-            href="https://nextjs.org/docs?utm_source=create-next-app&utm_medium=appdir-template-tw&utm_campaign=create-next-app"
-            target="_blank"
-            rel="noopener noreferrer"
-          >
-            Documentation
-          </a>
+          </div>
+
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">Description</label>
+            <textarea
+              value={newCollectionDesc}
+              onChange={(e) => setNewCollectionDesc(e.target.value)}
+              placeholder="Optional description..."
+              className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-2 focus:ring-blue-500"
+              rows={2}
+            />
+          </div>
+
+          <div className="flex gap-2 justify-end">
+            <button
+              onClick={() => {
+                setShowNewCollectionForm(false);
+                setNewCollectionName('');
+                setNewCollectionDesc('');
+                setError(null);
+              }}
+              className="px-4 py-2 text-gray-700 border border-gray-300 rounded-md hover:bg-gray-50"
+            >
+              Cancel
+            </button>
+            <button
+              onClick={handleCreateCollection}
+              className="px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700"
+            >
+              Create Collection
+            </button>
+          </div>
         </div>
-      </main>
-    </div>
+      ) : (
+        <button
+          onClick={() => setShowNewCollectionForm(true)}
+          className="mb-8 px-4 py-2 bg-green-600 text-white rounded-md hover:bg-green-700"
+        >
+          + New Collection
+        </button>
+      )}
+
+      {/* Collections List */}
+      <CollectionList collections={collections} onDelete={handleDeleteCollection} />
+    </main>
   );
 }
