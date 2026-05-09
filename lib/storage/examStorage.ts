@@ -1,5 +1,5 @@
 import { Exam, Question } from '@/lib/types';
-import { safeSave, safeGet, safeRemove } from '@/lib/utils/localStorage';
+import { safeSave, safeGet, safeRemove } from '@/lib/utils/indexedDB';
 
 /**
  * Exam Storage - manages exams within collections
@@ -156,34 +156,34 @@ function validateFixedStructure(exam: Exam): void {
 /**
  * Save a new exam to a collection
  */
-export function saveExam(exam: Exam): void {
+export async function saveExam(exam: Exam): Promise<void> {
   // Validate fixed structure
   validateFixedStructure(exam);
   
-  safeSave(`${EXAM_KEY_PREFIX}:${exam.id}`, exam);
+  await safeSave(`${EXAM_KEY_PREFIX}:${exam.id}`, exam);
 
   // Update exams index for this collection
   const key = `${EXAMS_INDEX_KEY_PREFIX}:${exam.collectionId}`;
-  const exams = safeGet<Exam[]>(key, []) ?? [];
+  const exams = (await safeGet<Exam[]>(key, [])) ?? [];
   if (!exams.find((e) => e.id === exam.id)) {
     exams.push(exam);
-    safeSave(key, exams);
+    await safeSave(key, exams);
   }
 }
 
 /**
  * Get all exams in a collection
  */
-export function getExamsByCollection(collectionId: string): Exam[] {
+export async function getExamsByCollection(collectionId: string): Promise<Exam[]> {
   const key = `${EXAMS_INDEX_KEY_PREFIX}:${collectionId}`;
-  return safeGet<Exam[]>(key, []) ?? [];
+  return (await safeGet<Exam[]>(key, [])) ?? [];
 }
 
 /**
  * Get a single exam by ID
  */
-export function getExam(id: string): Exam | null {
-  const exam = safeGet<Exam>(`${EXAM_KEY_PREFIX}:${id}`, undefined);
+export async function getExam(id: string): Promise<Exam | null> {
+  const exam = await safeGet<Exam>(`${EXAM_KEY_PREFIX}:${id}`, undefined);
   if (exam) {
     // Validate structure on load
     try {
@@ -193,14 +193,14 @@ export function getExam(id: string): Exam | null {
       // Return exam anyway, but log the error
     }
   }
-  return exam;
+  return exam ?? null;
 }
 
 /**
  * Update exam (ONLY if not locked)
  */
-export function updateExam(id: string, updates: Partial<Omit<Exam, 'id' | 'collectionId' | 'createdAt'>>): void {
-  const exam = getExam(id);
+export async function updateExam(id: string, updates: Partial<Omit<Exam, 'id' | 'collectionId' | 'createdAt'>>): Promise<void> {
+  const exam = await getExam(id);
   if (!exam) {
     throw new Error(`Exam not found: ${id}`);
   }
@@ -215,15 +215,15 @@ export function updateExam(id: string, updates: Partial<Omit<Exam, 'id' | 'colle
     updatedAt: Date.now(),
   };
 
-  safeSave(`${EXAM_KEY_PREFIX}:${id}`, updated);
+  await safeSave(`${EXAM_KEY_PREFIX}:${id}`, updated);
 
   // Update collection's exam index
   const key = `${EXAMS_INDEX_KEY_PREFIX}:${exam.collectionId}`;
-  const exams = safeGet<Exam[]>(key, []) ?? [];
+  const exams = (await safeGet<Exam[]>(key, [])) ?? [];
   const index = exams.findIndex((e) => e.id === id);
   if (index >= 0) {
     exams[index] = updated;
-    safeSave(key, exams);
+    await safeSave(key, exams);
   }
 }
 
@@ -239,8 +239,8 @@ export function addQuestion(_examId: string, _question: Question): void {
 /**
  * Update a question (ONLY if exam not locked)
  */
-export function updateQuestion(examId: string, questionId: string, updates: Partial<Question>): void {
-  const exam = getExam(examId);
+export async function updateQuestion(examId: string, questionId: string, updates: Partial<Question>): Promise<void> {
+  const exam = await getExam(examId);
   if (!exam) {
     throw new Error(`Exam not found: ${examId}`);
   }
@@ -260,7 +260,7 @@ export function updateQuestion(examId: string, questionId: string, updates: Part
   };
 
   const questions = exam.questions.map((q) => (q.id === questionId ? updated : q));
-  updateExam(examId, { questions });
+  await updateExam(examId, { questions });
 }
 
 /**
@@ -275,8 +275,8 @@ export function deleteQuestion(_examId: string, _questionId: string): void {
 /**
  * Transition exam status to 'completed-locked' when submitted
  */
-export function lockExam(id: string): void {
-  const exam = getExam(id);
+export async function lockExam(id: string): Promise<void> {
+  const exam = await getExam(id);
   if (!exam) {
     throw new Error(`Exam not found: ${id}`);
   }
@@ -288,23 +288,23 @@ export function lockExam(id: string): void {
     updatedAt: Date.now(),
   };
 
-  safeSave(`${EXAM_KEY_PREFIX}:${id}`, updated);
+  await safeSave(`${EXAM_KEY_PREFIX}:${id}`, updated);
 
   // Update collection's exam index
   const key = `${EXAMS_INDEX_KEY_PREFIX}:${exam.collectionId}`;
-  const exams = safeGet<Exam[]>(key, []) ?? [];
+  const exams = (await safeGet<Exam[]>(key, [])) ?? [];
   const index = exams.findIndex((e) => e.id === id);
   if (index >= 0) {
     exams[index] = updated;
-    safeSave(key, exams);
+    await safeSave(key, exams);
   }
 }
 
 /**
  * Delete an exam (ONLY if not locked)
  */
-export function deleteExam(id: string): void {
-  const exam = getExam(id);
+export async function deleteExam(id: string): Promise<void> {
+  const exam = await getExam(id);
   if (!exam) {
     throw new Error(`Exam not found: ${id}`);
   }
@@ -313,14 +313,14 @@ export function deleteExam(id: string): void {
     throw new Error(`Cannot delete locked exam: ${id}`);
   }
 
-  safeRemove(`${EXAM_KEY_PREFIX}:${id}`);
+  await safeRemove(`${EXAM_KEY_PREFIX}:${id}`);
 
   // Update collection's exam index
   const key = `${EXAMS_INDEX_KEY_PREFIX}:${exam.collectionId}`;
-  const exams = (safeGet<Exam[]>(key, []) ?? []).filter((e) => e.id !== id);
+  const exams = ((await safeGet<Exam[]>(key, [])) ?? []).filter((e) => e.id !== id);
   if (exams.length > 0) {
-    safeSave(key, exams);
+    await safeSave(key, exams);
   } else {
-    safeRemove(key);
+    await safeRemove(key);
   }
 }

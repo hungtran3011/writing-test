@@ -7,6 +7,7 @@ import { Exam, Answer } from '@/lib/types';
 import { getExam, lockExam } from '@/lib/storage/examStorage';
 import { createSubmission, saveSubmission, getLatestSubmission } from '@/lib/storage/submissionStorage';
 import ExamTaker from '@/components/exam/ExamTaker';
+import { safeGet, safeSave, safeRemove } from '@/lib/utils/indexedDB';
 
 
 interface PageParams {
@@ -41,7 +42,7 @@ export default function TakeExamPage({ params }: PageParams) {
 
     const loadExam = async () => {
       try {
-        const examData = getExam(examId);
+        const examData = await getExam(examId);
         if (!examData) {
           setError('Exam not found');
           setExam(null);
@@ -59,7 +60,7 @@ export default function TakeExamPage({ params }: PageParams) {
         }
 
         // Check if there's an existing submission
-        const existingSubmission = getLatestSubmission(examId);
+        const existingSubmission = await getLatestSubmission(examId);
         if (existingSubmission) {
           setError('You have already submitted this exam');
           setIsSubmitted(true);
@@ -71,14 +72,10 @@ export default function TakeExamPage({ params }: PageParams) {
         setExam(examData);
         setStartTime(Date.now());
 
-        // Initialize answers from localStorage if available
-        const savedAnswers = localStorage.getItem(`exam-answers:${examId}`);
+        // Initialize answers from indexedDB if available
+        const savedAnswers = await safeGet<Record<string, string>>(`exam-answers:${examId}`);
         if (savedAnswers) {
-          try {
-            setAnswers(JSON.parse(savedAnswers));
-          } catch {
-            // Ignore parse errors
-          }
+          setAnswers(savedAnswers);
         }
         setIsLoading(false);
       } catch (err) {
@@ -94,9 +91,9 @@ export default function TakeExamPage({ params }: PageParams) {
   useEffect(() => {
     if (!examId || !exam) return;
 
-    const timer = setInterval(() => {
+    const timer = setInterval(async () => {
       try {
-        localStorage.setItem(`exam-answers:${examId}`, JSON.stringify(answers));
+        await safeSave(`exam-answers:${examId}`, answers);
         console.log('Answers auto-saved');
       } catch (err) {
         console.error('Failed to autosave answers:', err);
@@ -113,7 +110,7 @@ export default function TakeExamPage({ params }: PageParams) {
     }));
   }, []);
 
-  const handleSubmit = useCallback(() => {
+  const handleSubmit = useCallback(async () => {
     if (!exam || !startTime || isSubmitted) return;
 
     try {
@@ -125,13 +122,13 @@ export default function TakeExamPage({ params }: PageParams) {
       }));
 
       const submission = createSubmission(exam.id, exam.collectionId, startTime, submissionAnswers);
-      saveSubmission(submission);
+      await saveSubmission(submission);
 
       // Lock the exam
-      lockExam(exam.id);
+      await lockExam(exam.id);
 
       // Clear cached answers
-      localStorage.removeItem(`exam-answers:${examId}`);
+      await safeRemove(`exam-answers:${examId}`);
 
       setIsSubmitted(true);
       setExam((prev) => (prev ? { ...prev, status: 'completed-locked' } : null));
@@ -150,10 +147,10 @@ export default function TakeExamPage({ params }: PageParams) {
     handleSubmit();
   }, [handleSubmit]);
 
-  const handleCancel = useCallback(() => {
+  const handleCancel = useCallback(async () => {
     if (confirm('Bạn có chắc muốn hủy bài thi? Toàn bộ quá trình làm bài sẽ bị xóa.')) {
       if (examId) {
-        localStorage.removeItem(`exam-answers:${examId}`);
+        await safeRemove(`exam-answers:${examId}`);
       }
       router.push('/');
     }

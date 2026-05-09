@@ -39,14 +39,14 @@ export default function CollectionDetailPage({ params }: PageParams) {
 
     const loadData = async () => {
       try {
-        const col = getCollection(paramId);
+        const col = await getCollection(paramId);
         if (!col) {
           setError('Collection not found');
           setCollection(null);
           setExams([]);
         } else {
           setCollection(col);
-          const examsData = getExamsByCollection(paramId);
+          const examsData = await getExamsByCollection(paramId);
           setExams(examsData);
           setError(null);
         }
@@ -60,19 +60,19 @@ export default function CollectionDetailPage({ params }: PageParams) {
     loadData();
   }, [paramId]);
 
-  const handleSaveExam = (exam: Exam) => {
+  const handleSaveExam = async (exam: Exam) => {
     try {
-      saveExam(exam);
-      setExams(getExamsByCollection(paramId!));
+      await saveExam(exam);
+      setExams(await getExamsByCollection(paramId!));
       setShowNewExamForm(false);
     } catch (err) {
       setError(`Failed to save exam: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
 
-  const handleDeleteExam = (id: string) => {
+  const handleDeleteExam = async (id: string) => {
     try {
-      deleteExam(id);
+      await deleteExam(id);
       setExams(exams.filter((e) => e.id !== id));
     } catch (err) {
       setError(`Failed to delete exam: ${err instanceof Error ? err.message : 'Unknown error'}`);

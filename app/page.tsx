@@ -11,16 +11,23 @@ export default function Home() {
   const [newCollectionName, setNewCollectionName] = useState('');
   const [newCollectionDesc, setNewCollectionDesc] = useState('');
   const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
-    const loadCollections = () => {
-      const data = getAllCollections();
-      setCollections(data);
+    const loadCollections = async () => {
+      try {
+        const data = await getAllCollections();
+        setCollections(data);
+      } catch (err) {
+        console.error('Failed to load collections:', err);
+      } finally {
+        setIsLoading(false);
+      }
     };
     loadCollections();
   }, []);
 
-  const handleCreateCollection = () => {
+  const handleCreateCollection = async () => {
     setError(null);
 
     if (!newCollectionName.trim()) {
@@ -30,7 +37,7 @@ export default function Home() {
 
     try {
       const newCollection = createCollection(newCollectionName, newCollectionDesc);
-      saveCollection(newCollection);
+      await saveCollection(newCollection);
       setCollections([...collections, newCollection]);
       setNewCollectionName('');
       setNewCollectionDesc('');
@@ -40,14 +47,18 @@ export default function Home() {
     }
   };
 
-  const handleDeleteCollection = (id: string) => {
+  const handleDeleteCollection = async (id: string) => {
     try {
-      deleteCollection(id);
+      await deleteCollection(id);
       setCollections(collections.filter((c) => c.id !== id));
     } catch (err) {
       setError(`Failed to delete collection: ${err instanceof Error ? err.message : 'Unknown error'}`);
     }
   };
+
+  if (isLoading) {
+    return <main className="w-full px-4 py-8 sm:px-6 lg:px-8">Loading...</main>;
+  }
 
   return (
     <main className="w-full px-4 py-8 sm:px-6 lg:px-8">

@@ -1,5 +1,5 @@
 import { Submission, Answer } from '@/lib/types';
-import { safeSave, safeGet } from '@/lib/utils/localStorage';
+import { safeSave, safeGet } from '@/lib/utils/indexedDB';
 
 /**
  * Submission Storage - manages exam submissions (locked once saved)
@@ -30,43 +30,44 @@ export function createSubmission(
 /**
  * Save a submission (immutable - once saved, cannot be changed)
  */
-export function saveSubmission(submission: Submission): void {
-  safeSave(`${SUBMISSION_KEY_PREFIX}:${submission.id}`, submission);
+export async function saveSubmission(submission: Submission): Promise<void> {
+  await safeSave(`${SUBMISSION_KEY_PREFIX}:${submission.id}`, submission);
 
   // Update submissions index
-  const index = safeGet<Record<string, string[]>>(SUBMISSIONS_INDEX_KEY, {}) ?? {};
+  const index = (await safeGet<Record<string, string[]>>(SUBMISSIONS_INDEX_KEY, {})) ?? {};
   if (!index[submission.examId]) {
     index[submission.examId] = [];
   }
   if (!index[submission.examId].find((s: string) => s === submission.id)) {
     index[submission.examId].push(submission.id);
   }
-  safeSave(SUBMISSIONS_INDEX_KEY, index);
+  await safeSave(SUBMISSIONS_INDEX_KEY, index);
 }
 
 /**
  * Get all submissions for an exam
  */
-export function getSubmissionsByExam(examId: string): Submission[] {
-  const index = safeGet<Record<string, string[]>>(SUBMISSIONS_INDEX_KEY, {}) ?? {};
+export async function getSubmissionsByExam(examId: string): Promise<Submission[]> {
+  const index = (await safeGet<Record<string, string[]>>(SUBMISSIONS_INDEX_KEY, {})) ?? {};
   const submissionIds = index[examId] ?? [];
-  return submissionIds
-    .map((id: string) => safeGet<Submission>(`${SUBMISSION_KEY_PREFIX}:${id}`, undefined))
-    .filter((s: Submission | null | undefined): s is Submission => s !== null && s !== undefined);
+  const submissions = await Promise.all(
+    submissionIds.map((id: string) => safeGet<Submission>(`${SUBMISSION_KEY_PREFIX}:${id}`, undefined))
+  );
+  return submissions.filter((s: Submission | null | undefined): s is Submission => s !== null && s !== undefined);
 }
 
 /**
  * Get a single submission by ID
  */
-export function getSubmission(id: string): Submission | null {
-  return safeGet<Submission>(`${SUBMISSION_KEY_PREFIX}:${id}`, undefined);
+export async function getSubmission(id: string): Promise<Submission | null> {
+  return await safeGet<Submission>(`${SUBMISSION_KEY_PREFIX}:${id}`, undefined);
 }
 
 /**
  * Get the most recent submission for an exam
  */
-export function getLatestSubmission(examId: string): Submission | null {
-  const submissions = getSubmissionsByExam(examId);
+export async function getLatestSubmission(examId: string): Promise<Submission | null> {
+  const submissions = await getSubmissionsByExam(examId);
   if (submissions.length === 0) return null;
   return submissions.sort((a, b) => b.completedAt - a.completedAt)[0];
 }
@@ -74,11 +75,13 @@ export function getLatestSubmission(examId: string): Submission | null {
 /**
  * Get all submissions for a collection
  */
-export function getSubmissionsByCollection(collectionId: string): Submission[] {
-  const index = safeGet<Record<string, string[]>>(SUBMISSIONS_INDEX_KEY, {}) ?? {};
+export async function getSubmissionsByCollection(collectionId: string): Promise<Submission[]> {
+  const index = (await safeGet<Record<string, string[]>>(SUBMISSIONS_INDEX_KEY, {})) ?? {};
   const allSubmissionIds = Object.values(index).flat() as string[];
-  return allSubmissionIds
-    .map((id: string) => safeGet<Submission>(`${SUBMISSION_KEY_PREFIX}:${id}`, undefined))
+  const submissions = await Promise.all(
+    allSubmissionIds.map((id: string) => safeGet<Submission>(`${SUBMISSION_KEY_PREFIX}:${id}`, undefined))
+  );
+  return submissions
     .filter((s: Submission | null | undefined): s is Submission => s !== null && s !== undefined)
     .filter((s) => s.collectionId === collectionId);
 }
@@ -86,7 +89,7 @@ export function getSubmissionsByCollection(collectionId: string): Submission[] {
 /**
  * Check if exam has any submissions (used to determine if can be edited)
  */
-export function hasSubmissions(examId: string): boolean {
-  const submissions = getSubmissionsByExam(examId);
+export async function hasSubmissions(examId: string): Promise<boolean> {
+  const submissions = await getSubmissionsByExam(examId);
   return submissions.length > 0;
 }

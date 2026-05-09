@@ -37,14 +37,14 @@ export default function ExamResultPage({ params }: PageParams) {
 
     const loadData = async () => {
       try {
-        const examData = getExam(examId);
+        const examData = await getExam(examId);
         if (!examData) {
           setError('Exam not found');
           setIsLoading(false);
           return;
         }
 
-        const submissionData = getLatestSubmission(examId);
+        const submissionData = await getLatestSubmission(examId);
         if (!submissionData) {
           setError('No submission found for this exam');
           setIsLoading(false);
